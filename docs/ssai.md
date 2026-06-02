@@ -14,21 +14,35 @@ Customers should already have:
 - valid New Relic streaming credentials
 - a real SSAI playback URL from their ad stitching provider
 
-For AWS MediaTailor specifically, the tracker expects a sessionized playback URL. The MediaTailor path is selected when the source URL contains `.mediatailor.`.
+## Activation
+
+Pass `mediatailor: true` when initialising the tracker. This is required for all setups — default AWS hostnames and custom CDN domains alike.
+
+```javascript
+const tracker = new VideojsTracker(player, { mediatailor: true });
+```
 
 ## What The Tracker Does Automatically
 
 For MediaTailor streams, the tracker automatically:
 
-1. Detects that the playback URL is a MediaTailor source.
-2. Detects whether the manifest format is HLS or DASH.
-3. Detects whether playback is VOD or LIVE from player state.
-4. Builds the MediaTailor tracking endpoint from the playback URL when a session id is present.
-5. Parses manifests to discover ad breaks.
-6. Sends ad break, ad start, quartile, and ad end events.
-7. Enriches ad metadata with tracking endpoint data when that data is available.
+1. Detects whether the manifest format is HLS or DASH.
+2. Detects whether playback is VOD or LIVE from player state.
+3. Parses manifests to discover ad breaks and distinguish ad segments from content segments.
+4. Sends ad break, ad start, quartile, and ad end events.
+5. Enriches ad metadata when tracking data is available.
 
-Customers do not need to pass MediaTailor-specific tracker flags for manifest parsing or live polling behavior.
+## Custom CDN / Custom Domain
+
+If you have configured CDN segment prefixes in the AWS MediaTailor console, `mediatailor: true` is still all you need. The tracker detects ad segments automatically using the AWS-recommended `/tm/` ad-segment path convention.
+
+If your CDN ad-segment prefix uses a non-standard path (not `/tm/`), pass the path as an override:
+
+```javascript
+const tracker = new VideojsTracker(player, {
+  mediatailor: { adSegmentPrefix: '/your-path/' }
+});
+```
 
 ## Supported MediaTailor Scenarios
 
@@ -65,17 +79,15 @@ Some metadata can arrive after playback has already started if it is filled in f
 ## Common Integration Requirements
 
 - The player source should be the actual stitched SSAI playback URL.
-- The MediaTailor URL should still contain the session identifier required to derive the tracking endpoint.
 - The player tech must be able to play the provided source format.
 
 ## Troubleshooting
 
-If MediaTailor tracking does not activate, customers should verify:
+If MediaTailor tracking does not activate, verify:
 
-1. the source really is a MediaTailor playback URL
-2. the source contains `.mediatailor.`
-3. the URL is sessionized and still contains the required session identifier
-4. the source MIME type passed to Video.js matches the actual manifest format
+1. `mediatailor: true` is passed in the tracker options.
+2. Segment requests are reaching the player (check the Network tab).
+3. If using a custom CDN ad-segment path, verify `adSegmentPrefix` matches the path configured in the AWS MediaTailor console.
 
 ## Samples
 

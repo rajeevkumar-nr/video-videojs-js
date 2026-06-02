@@ -480,25 +480,24 @@ The tracker automatically detects and tracks AWS MediaTailor SSAI streams. It su
 ```javascript
 import VideojsTracker from '@newrelic/video-videojs';
 
-// Initialize player with a sessionized MediaTailor playback URL
+// Initialize player with a MediaTailor playback URL
 player.src({
   src: 'https://your-mediatailor-endpoint.mediatailor.region.amazonaws.com/v1/master/...',
   type: 'application/x-mpegURL'
 });
 
-// Initialize tracker - MediaTailor support is automatic
-const tracker = new VideojsTracker(player, options);
+// Pass mediatailor: true to activate the MediaTailor tracker
+const tracker = new VideojsTracker(player, { mediatailor: true });
 ```
 
 The tracker will automatically:
-1. Detect MediaTailor URLs (`.mediatailor.` in URL)
-2. Build the MediaTailor tracking endpoint from the sessionized playback URL
-3. Parse HLS or DASH manifests for ad markers
+1. Detect whether the manifest format is HLS or DASH
+2. Detect whether playback is VOD or LIVE
+3. Parse manifests for ad breaks and distinguish ad segments from content segments
 4. Track ad breaks, ad starts, quartiles, and ad ends
-5. Enrich ad metadata with the MediaTailor tracking endpoint when available
-6. Handle VOD and LIVE streams appropriately
+5. Enrich ad metadata when tracking data is available
 
-MediaTailor-specific behavior is automatic. The customer does not need to pass MediaTailor-only configuration flags into the tracker.
+Works with default AWS hostnames and custom CDN domains. See [docs/ssai.md](./docs/ssai.md) for custom CDN setup and advanced options.
 
 ## SSAI Guide
 

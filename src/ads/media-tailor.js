@@ -94,10 +94,8 @@ export default class MediaTailorAdsTracker extends VideojsAdsTracker {
     this.manifestFormat = null; // 'hls' or 'dash'
     this.playbackManifestUrl = player.currentSrc();
 
-    // trackingUrl: only needed for explicit POST sessions (/v1/session/).
-    // Implicit sessions embed ?aws.sessionId= in the playback URL, from which
-    // the tracking URL is derived automatically. Pass this when the session
-    // POST returns a trackingUrl that cannot be derived from the playback URL.
+    // trackingUrl: optional override for the MediaTailor tracking endpoint.
+    // When not provided, the tracker derives it automatically from the playback URL.
     this.explicitTrackingUrl = mtOptions.trackingUrl || null;
 
     // adSegmentPrefix: only needed when the customer configured a CDN ad-segment
@@ -173,7 +171,7 @@ export default class MediaTailorAdsTracker extends VideojsAdsTracker {
       );
     } else {
       console.warn(
-        `[MT - ${getTimestamp()}] No sessionId found - user must initialize session externally`,
+        `[MT - ${getTimestamp()}] Could not derive tracking URL from playback URL — pass trackingUrl in mediatailor options if needed`,
       );
     }
 
