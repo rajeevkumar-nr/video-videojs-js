@@ -3,6 +3,11 @@
  * Helper functions for AWS MediaTailor ad tracking
  */
 
+import nrvideo from '@newrelic/video-core';
+
+const nrvideoCore = nrvideo.default || nrvideo;
+const Log = nrvideoCore.Log;
+
 import {
   DASH_MANIFEST_EXTENSION,
   DASH_SCTE35_EVENT_STREAM_SELECTOR,
@@ -635,12 +640,12 @@ export function parseDashManifestForAdBreaks(xmlText, { adSegmentPrefix } = {}) 
 
   const parserError = xml.querySelector('parsererror');
   if (parserError) {
-    console.error('[MT] DASH XML parse error:', parserError.textContent);
+    Log.error('[MT] DASH XML parse error:', parserError.textContent);
     return ads;
   }
 
   const periods = xml.querySelectorAll('Period');
-  console.log(`[MT] Found ${periods.length} Period(s) in DASH manifest`);
+  Log.debug(`[MT] Found ${periods.length} Period(s) in DASH manifest`);
 
   if (periods.length > 1) {
     // ── MULTI_PERIOD ──────────────────────────────────────────────────────────
@@ -660,11 +665,11 @@ export function parseDashManifestForAdBreaks(xmlText, { adSegmentPrefix } = {}) 
       const duration = parseIsoDuration(period.getAttribute('duration') || '');
 
       if (duration < MIN_AD_DURATION) {
-        console.log(`[MT] Skipping period ${periodId} - duration too short (${duration}s)`);
+        Log.debug(`[MT] Skipping period ${periodId} - duration too short (${duration}s)`);
         return;
       }
 
-      console.log(`[MT] Ad period detected: ${periodId}`, { startTime, duration });
+      Log.debug(`[MT] Ad period detected: ${periodId}`, { startTime, duration });
 
       ads.push({
         id: periodId,
@@ -689,7 +694,7 @@ export function parseDashManifestForAdBreaks(xmlText, { adSegmentPrefix } = {}) 
       DASH_SCTE35_EVENT_STREAM_SELECTOR,
     );
 
-    console.log(`[MT] Found ${eventStreams.length} SCTE-35 EventStream(s) in single-period manifest`);
+    Log.debug(`[MT] Found ${eventStreams.length} SCTE-35 EventStream(s) in single-period manifest`);
 
     eventStreams.forEach((stream) => {
       const timescale = parseFloat(stream.getAttribute('timescale') || '1');
@@ -705,11 +710,11 @@ export function parseDashManifestForAdBreaks(xmlText, { adSegmentPrefix } = {}) 
         const durationSeconds = timescale !== 1 ? duration / timescale : duration;
 
         if (durationSeconds < MIN_AD_DURATION) {
-          console.log(`[MT] Skipping event ${eventId} - duration too short (${durationSeconds}s)`);
+          Log.debug(`[MT] Skipping event ${eventId} - duration too short (${durationSeconds}s)`);
           return;
         }
 
-        console.log(`[MT] SCTE-35 event detected: ${eventId}`, { startTime, durationSeconds });
+        Log.debug(`[MT] SCTE-35 event detected: ${eventId}`, { startTime, durationSeconds });
 
         ads.push({
           id: eventId,
@@ -730,7 +735,7 @@ export function parseDashManifestForAdBreaks(xmlText, { adSegmentPrefix } = {}) 
     });
   }
 
-  console.log(`[MT] Parsed ${ads.length} valid ad break(s) from DASH manifest`);
+  Log.debug(`[MT] Parsed ${ads.length} valid ad break(s) from DASH manifest`);
   return ads;
 }
 

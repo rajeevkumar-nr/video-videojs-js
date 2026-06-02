@@ -330,7 +330,7 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
       e.type === 'loadstart' &&
       MediaTailorAdsTracker.isUsing(this.player, this.options)
     ) {
-      console.log(
+      nrvideo.Log.debug(
         'VideojsTracker: Creating MediaTailorAdsTracker after source load'
       );
       this.setAdsTracker(new MediaTailorAdsTracker(this.player, this.options));
