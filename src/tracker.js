@@ -11,17 +11,31 @@ import DaiAdsTracker from './ads/dai';
 import MediaTailorAdsTracker from './ads/media-tailor';
 
 /**
- * Controls which ad tracker (if any) is created automatically.
- *   automatic — auto-detect all frameworks (default, backward-compatible)
- *   none      — disable all ad tracking
- *   ima       — only IMA / Brightcove IMA trackers
- *   mt        — only AWS MediaTailor tracker
+ * Explicit ad tracking modes.
+ *
+ * CSAI (Client-Side Ad Insertion)
+ *   CSAI.ALL       — detect best match in order: Brightcove IMA → IMA → Freewheel → generic
+ *   CSAI.IMA       — Google IMA or Brightcove IMA (ima3) only
+ *   CSAI.FREEWHEEL — Freewheel only
+ *
+ * SSAI (Server-Side Ad Insertion) — sub-type is always required.
+ *   Each SSAI platform needs its own SDK and cannot be auto-detected.
+ *   SSAI.DAI — Google DAI (google.ima.dai.api)
+ *   SSAI.MT  — AWS MediaTailor (implies mediatailor: true if not already set)
+ *
+ * If adTracking is not set, no ad tracking runs (safe default).
+ * Extend by adding new keys to CSAI or SSAI — validation derives from this object.
  */
 export const AD_TRACKING = {
-  AUTOMATIC: 'automatic',
-  NONE: 'none',
-  IMA: 'ima',
-  MT: 'mt',
+  CSAI: {
+    ALL:       'csai',
+    IMA:       'csai:ima',
+    FREEWHEEL: 'csai:freewheel',
+  },
+  SSAI: {
+    DAI: 'ssai:dai',
+    MT:  'ssai:mt',
+  },
 };
 
 export default class VideojsTracker extends nrvideo.VideoTracker {
@@ -31,21 +45,20 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
     this.isContentEnd = false;
     this.imaAdCuePoints = '';
     this.daiInitialized = false;
-    this.adTracking = (options && options.adTracking) || AD_TRACKING.AUTOMATIC;
+    this.adTracking = (options && options.adTracking) || null;
 
-    // Warn when options are provided but adTracking is not explicitly set.
-    // Enterprise integrations should declare intent rather than relying on auto-detection.
-    if (options && options.adTracking === undefined) {
+    // When options are provided but adTracking is not declared, no ad tracking
+    // will run. Warn so the caller knows to set it explicitly.
+    if (options && !options.adTracking) {
       nrvideo.Log.warn(
-        'VideojsTracker: adTracking not specified — falling back to automatic ad framework ' +
-        'detection. Set adTracking explicitly (e.g. "ima", "mt", "none") for deterministic behaviour.'
+        'VideojsTracker: adTracking not set — no ad tracking will run. ' +
+        'Set adTracking to enable it (e.g. AD_TRACKING.CSAI.IMA, AD_TRACKING.SSAI.MT).'
       );
     }
 
-    // adTracking:'mt' is self-contained — it implies mediatailor activation.
-    // Normalize so MediaTailorAdsTracker.isUsing() returns true without requiring
-    // the user to also pass mediatailor:true separately.
-    if (this.adTracking === AD_TRACKING.MT && !(this.options && this.options.mediatailor)) {
+    // SSAI.MT is self-contained — implies mediatailor:true so the MT tracker
+    // activates without requiring a separate mediatailor option.
+    if (this.adTracking === AD_TRACKING.SSAI.MT && !(this.options && this.options.mediatailor)) {
       this.options = Object.assign({}, this.options, { mediatailor: true });
     }
 
@@ -55,18 +68,18 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
   /**
    * Sets the ad tracking mode at runtime.
    * Must be called before the first loadstart / adsready event to take effect.
-   * @param {'automatic'|'none'|'ima'|'mt'} type
+   * @param {'csai'|'csai:ima'|'csai:freewheel'|'ssai:dai'|'ssai:mt'} type
    */
   setAdTracking(type) {
-    const valid = Object.values(AD_TRACKING);
+    const valid = Object.values(AD_TRACKING).flatMap(group => Object.values(group));
     if (!valid.includes(type)) {
       nrvideo.Log.warn(
-        `VideojsTracker.setAdTracking: unknown type "${type}". Valid values: ${valid.join(', ')}`
+        `VideojsTracker.setAdTracking: unknown value "${type}". Valid values: ${valid.join(', ')}`
       );
       return;
     }
     this.adTracking = type;
-    if (type === AD_TRACKING.MT && !(this.options && this.options.mediatailor)) {
+    if (type === AD_TRACKING.SSAI.MT && !(this.options && this.options.mediatailor)) {
       this.options = Object.assign({}, this.options, { mediatailor: true });
     }
     nrvideo.Log.debug(`VideojsTracker: adTracking set to "${type}"`);
@@ -375,19 +388,14 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
   onDownload(e) {
     this.sendDownload({ state: e.type });
 
-    // Only attempt MediaTailor detection when adTracking allows it and on loadstart
     if (
-      this.adTracking !== AD_TRACKING.NONE &&
-      this.adTracking !== AD_TRACKING.IMA &&
+      this.adTracking === AD_TRACKING.SSAI.MT &&
       !this.adsTracker &&
-      e.type === 'loadstart' &&
-      MediaTailorAdsTracker.isUsing(this.player, this.options)
+      e.type === 'loadstart'
     ) {
-      nrvideo.Log.debug(
-        'VideojsTracker: Creating MediaTailorAdsTracker after source load'
-      );
+      nrvideo.Log.debug('VideojsTracker: Creating MediaTailorAdsTracker');
       this.setAdsTracker(new MediaTailorAdsTracker(this.player, this.options));
-      // MediaTailor SSAI starts with content, not ads (unlike client-side ad frameworks)
+      // MediaTailor SSAI starts with content, not ads (unlike client-side frameworks)
       this.adsTracker.setIsAd(false);
     }
   }
@@ -395,7 +403,7 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
   // DAI methods
   onStreamManager(event) {
     if (
-      this.adTracking === AD_TRACKING.AUTOMATIC &&
+      this.adTracking === AD_TRACKING.SSAI.DAI &&
       !this.adsTracker &&
       event.StreamManager
     ) {
@@ -407,30 +415,24 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
   // DAI methods end
 
   onAdsready() {
-    // 'none' and 'mt' modes do not use client-side ad frameworks
-    if (
-      this.adTracking === AD_TRACKING.NONE ||
-      this.adTracking === AD_TRACKING.MT
-    ) {
-      return;
-    }
+    // Only CSAI modes go through the adsready path.
+    // null (not set) or SSAI values → no tracking, skip.
+    if (!this.adTracking || !this.adTracking.startsWith('csai')) return;
 
     if (!this.adsTracker) {
-      if (BrightcoveImaAdsTracker.isUsing(this.player)) {
-        // BC IMA
+      const all = this.adTracking === AD_TRACKING.CSAI.ALL;
+      const isIma = all || this.adTracking === AD_TRACKING.CSAI.IMA;
+      const isFw  = all || this.adTracking === AD_TRACKING.CSAI.FREEWHEEL;
+
+      if (isIma && BrightcoveImaAdsTracker.isUsing(this.player)) {
         this.setAdsTracker(new BrightcoveImaAdsTracker(this.player));
-      } else if (ImaAdsTracker.isUsing(this.player)) {
-        // IMA
+      } else if (isIma && ImaAdsTracker.isUsing(this.player)) {
         this.setAdsTracker(new ImaAdsTracker(this.player));
-      } else if (
-        this.adTracking === AD_TRACKING.AUTOMATIC &&
-        FreewheelAdsTracker.isUsing(this.player)
-      ) {
-        // FW — only under automatic mode (not when explicitly requesting IMA)
-        this.setAdsTracker(new FreewheelAdsTracker(this.player));
+      } else if (isFw && FreewheelAdsTracker.isUsing(this.player)) {
         // } else if (OnceAdsTracker.isUsing(this)) { // Once
-      } else if (this.adTracking === AD_TRACKING.AUTOMATIC) {
-        // Generic — only under automatic mode
+        this.setAdsTracker(new FreewheelAdsTracker(this.player));
+      } else if (all) {
+        // Generic contrib-ads fallback — only under CSAI.ALL
         this.setAdsTracker(new VideojsAdsTracker(this.player));
       }
     }
@@ -558,5 +560,6 @@ export {
   ImaAdsTracker,
   BrightcoveImaAdsTracker,
   FreewheelAdsTracker,
+  DaiAdsTracker,
   MediaTailorAdsTracker,
 };

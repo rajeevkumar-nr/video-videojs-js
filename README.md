@@ -308,33 +308,54 @@ if (shouldEnableTracking(currentUser.id)) {
 
 ### Ad Tracking
 
-| Option        | Type             | Default       | Description                                                                                                                                |
-| ------------- | ---------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `adTracking`  | string           | `'automatic'` | Declares which ad tracker to use. **Always set this explicitly** — omitting it triggers a warning and falls back to automatic detection.   |
-| `mediatailor` | boolean / object | —             | Activates the AWS MediaTailor tracker. Pass `true` or an object with `{ trackingUrl, adSegmentPrefix }`. See [SSAI Guide](./docs/ssai.md). |
+The `adTracking` option declares which ad framework the tracker should wire up. **If not set, no ad tracking runs** — this is the safe default. Omitting it while passing other options triggers a console warning.
 
-**`adTracking` values:**
+Ad tracking modes are organised into two categories:
 
-| Value         | Behaviour                                                                                                                            |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `'none'`      | Disables all ad tracking. No ad tracker is created.                                                                                  |
-| `'ima'`       | Only creates an IMA or Brightcove IMA tracker. Freewheel, DAI, and MediaTailor are skipped.                                         |
-| `'mt'`        | Only creates the AWS MediaTailor tracker. Implies `mediatailor: true` if not already set.                                            |
-| `'automatic'` | Auto-detects the ad framework in use (IMA, Brightcove IMA, Freewheel, DAI, MediaTailor). Fallback only — prefer an explicit value.  |
+#### CSAI — Client-Side Ad Insertion
 
-> **Best practice:** Always declare `adTracking` explicitly. Relying on auto-detection produces a warning in the console and can result in unexpected trackers being created if multiple ad frameworks are present on the page.
+All CSAI frameworks activate through the `adsready` event. Specify the exact framework or use `CSAI.ALL` to detect the best match.
+
+| Value              | Constant                     | Behaviour                                                              |
+| ------------------ | ---------------------------- | ---------------------------------------------------------------------- |
+| `'csai'`           | `AD_TRACKING.CSAI.ALL`       | Detect best match: Brightcove IMA → IMA → Freewheel → generic         |
+| `'csai:ima'`       | `AD_TRACKING.CSAI.IMA`       | Google IMA or Brightcove IMA (ima3) only                               |
+| `'csai:freewheel'` | `AD_TRACKING.CSAI.FREEWHEEL` | Freewheel only                                                         |
+
+#### SSAI — Server-Side Ad Insertion
+
+Each SSAI platform requires its own SDK and cannot be auto-detected. **A sub-type is always required.**
+
+| Value        | Constant               | Behaviour                                                               |
+| ------------ | ---------------------- | ----------------------------------------------------------------------- |
+| `'ssai:dai'` | `AD_TRACKING.SSAI.DAI` | Google DAI (`google.ima.dai.api`)                                       |
+| `'ssai:mt'`  | `AD_TRACKING.SSAI.MT`  | AWS MediaTailor — implies `mediatailor: true` if not already set        |
 
 ```javascript
 import { AD_TRACKING } from '@newrelic/video-videojs';
 
-// Recommended: explicit declaration
-const tracker = new VideojsTracker(player, { adTracking: 'none' });
-const tracker = new VideojsTracker(player, { adTracking: AD_TRACKING.IMA });
-const tracker = new VideojsTracker(player, { adTracking: 'mt' });
+// CSAI
+new VideojsTracker(player, { adTracking: AD_TRACKING.CSAI.ALL });
+new VideojsTracker(player, { adTracking: AD_TRACKING.CSAI.IMA });
+new VideojsTracker(player, { adTracking: AD_TRACKING.CSAI.FREEWHEEL });
 
-// Change at runtime before the first source loads
-tracker.setAdTracking(AD_TRACKING.MT);
+// SSAI — sub-type required
+new VideojsTracker(player, { adTracking: AD_TRACKING.SSAI.DAI });
+new VideojsTracker(player, { adTracking: AD_TRACKING.SSAI.MT });
+
+// SSAI.MT with custom CDN config
+new VideojsTracker(player, {
+  adTracking: AD_TRACKING.SSAI.MT,
+  mediatailor: { adSegmentPrefix: '/my-cdn-path/' },
+});
+
+// Change at runtime before first loadstart / adsready
+tracker.setAdTracking(AD_TRACKING.CSAI.IMA);
 ```
+
+> **Extending later:** add a new key under `AD_TRACKING.CSAI` or `AD_TRACKING.SSAI` in `tracker.js` and handle it in the relevant detection method. No other changes needed.
+
+> **`mediatailor` option:** still accepted for MediaTailor-specific config (`trackingUrl`, `adSegmentPrefix`). See [SSAI Guide](./docs/ssai.md).
 
 ### QoE (Quality of Experience) Settings
 
@@ -413,12 +434,11 @@ tracker.setOptions({
 Change the ad tracking mode after the tracker is created. Must be called before the first `loadstart` or `adsready` event to take effect.
 
 ```javascript
-// Valid values: 'automatic' | 'none' | 'ima' | 'mt'
-tracker.setAdTracking('none');
-
-// Or use the exported constant to avoid magic strings
 import { AD_TRACKING } from '@newrelic/video-videojs';
-tracker.setAdTracking(AD_TRACKING.MT);
+
+// Valid values: 'csai' | 'csai:ima' | 'csai:freewheel' | 'ssai:dai' | 'ssai:mt'
+tracker.setAdTracking(AD_TRACKING.CSAI.IMA);
+tracker.setAdTracking(AD_TRACKING.SSAI.MT);
 ```
 
 ### Example: Complete Integration
@@ -480,73 +500,49 @@ The tracker captures four distinct bitrate metrics providing complete quality an
 
 ## Ad Tracking Support
 
-The tracker provides comprehensive ad tracking capabilities:
-
 ### Supported Ad Technologies
 
-- **IMA (Interactive Media Ads)** - Google IMA SDK integration
-- **Freewheel** - Freewheel ad platform support
-- **SSAI (Server-Side Ad Insertion)** - Dynamic Ad Insertion (DAI) support
+| Category | Framework | Constant |
+|---|---|---|
+| CSAI | Google IMA / Brightcove IMA | `AD_TRACKING.CSAI.IMA` |
+| CSAI | Freewheel | `AD_TRACKING.CSAI.FREEWHEEL` |
+| CSAI | Auto-detect (all CSAI) | `AD_TRACKING.CSAI.ALL` |
+| SSAI | Google DAI | `AD_TRACKING.SSAI.DAI` |
+| SSAI | AWS MediaTailor | `AD_TRACKING.SSAI.MT` |
 
-### SSAI/DAI Integration
+See [Configuration Options → Ad Tracking](#ad-tracking) for full usage and examples.
 
-Server-Side Ad Insertion is supported with automatic tracker selection for supported integrations:
+### Google DAI Integration
 
 ```javascript
-// SSAI tracker selection is automatic for supported integrations
-const tracker = new VideojsTracker(player, options);
+import { AD_TRACKING } from '@newrelic/video-videojs';
 
-// The tracker will automatically capture:
-// - Ad breaks, starts, and completions
-// - Ad quartiles and click events
-// - SSAI-specific metadata when available
+const tracker = new VideojsTracker(player, { adTracking: AD_TRACKING.SSAI.DAI });
 ```
 
-**Example:** See [samples/dai/index.html](./samples/dai/index.html) for a complete SSAI implementation.
-
-> [!NOTE]
-> **Attention:**
-> This version supports tracking for SSAI (Server-Side Ad Insertion), including AWS MediaTailor. See [samples/media-tailor-lab.html](./samples/media-tailor-lab.html) and the [SSAI Guide](./docs/ssai.md).
+See [samples/dai/index.html](./samples/dai/index.html) for a complete example.
 
 ### AWS MediaTailor Integration
 
-The tracker automatically detects and tracks AWS MediaTailor SSAI streams. It supports:
-
-- **HLS and DASH** manifest formats
-- **VOD and LIVE** stream types
-- **Multiple ads (pods)** within a single break
-- **Quartile tracking** (25%, 50%, 75%)
-- **Tracking metadata enrichment** when MediaTailor tracking data is available
-
-#### Usage
+Supports HLS/DASH, VOD/LIVE, multiple ads per break, quartile tracking, and tracking metadata enrichment.
 
 ```javascript
-import VideojsTracker from '@newrelic/video-videojs';
+import { AD_TRACKING } from '@newrelic/video-videojs';
 
 player.src({
   src: 'https://your-mediatailor-endpoint.mediatailor.region.amazonaws.com/v1/master/...',
   type: 'application/x-mpegURL'
 });
 
-// Option A: explicit opt-in (existing approach)
-const tracker = new VideojsTracker(player, { mediatailor: true });
+// Standard setup
+const tracker = new VideojsTracker(player, { adTracking: AD_TRACKING.SSAI.MT });
 
-// Option B: adTracking:'mt' — restricts to MediaTailor only and implies mediatailor:true
-const tracker = new VideojsTracker(player, { adTracking: 'mt' });
-
-// Option B with custom CDN config
+// With custom CDN config
 const tracker = new VideojsTracker(player, {
+  adTracking: AD_TRACKING.SSAI.MT,
   mediatailor: { adSegmentPrefix: '/my-cdn-path/' },
-  adTracking: 'mt',
 });
 ```
-
-The tracker will automatically:
-1. Detect whether the manifest format is HLS or DASH
-2. Detect whether playback is VOD or LIVE
-3. Parse manifests for ad breaks and distinguish ad segments from content segments
-4. Track ad breaks, ad starts, quartiles, and ad ends
-5. Enrich ad metadata when tracking data is available
 
 Works with default AWS hostnames and custom CDN domains. See [docs/ssai.md](./docs/ssai.md) for custom CDN setup and advanced options.
 
