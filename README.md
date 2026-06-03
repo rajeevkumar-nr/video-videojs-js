@@ -308,34 +308,32 @@ if (shouldEnableTracking(currentUser.id)) {
 
 ### Ad Tracking
 
-| Option        | Type   | Default       | Description                                                                                                                                         |
-| ------------- | ------ | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `adTracking`  | string | `'automatic'` | Controls which ad tracker is created. See values below.                                                                                             |
-| `mediatailor` | boolean / object | —   | Activates the AWS MediaTailor tracker. Pass `true` or an object with `{ trackingUrl, adSegmentPrefix }`. See [SSAI Guide](./docs/ssai.md).          |
+| Option        | Type             | Default       | Description                                                                                                                                |
+| ------------- | ---------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `adTracking`  | string           | `'automatic'` | Declares which ad tracker to use. **Always set this explicitly** — omitting it triggers a warning and falls back to automatic detection.   |
+| `mediatailor` | boolean / object | —             | Activates the AWS MediaTailor tracker. Pass `true` or an object with `{ trackingUrl, adSegmentPrefix }`. See [SSAI Guide](./docs/ssai.md). |
 
 **`adTracking` values:**
 
-| Value         | Behaviour                                                                                              |
-| ------------- | ------------------------------------------------------------------------------------------------------ |
-| `'automatic'` | Auto-detects the ad framework in use (IMA, Brightcove IMA, Freewheel, DAI, MediaTailor). Default.     |
-| `'none'`      | Disables all ad tracking. No ad tracker is created.                                                    |
-| `'ima'`       | Only creates an IMA or Brightcove IMA tracker. Freewheel, DAI, and MediaTailor are skipped.            |
-| `'mt'`        | Only creates the AWS MediaTailor tracker. Implies `mediatailor: true` if not already set.              |
+| Value         | Behaviour                                                                                                                            |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `'none'`      | Disables all ad tracking. No ad tracker is created.                                                                                  |
+| `'ima'`       | Only creates an IMA or Brightcove IMA tracker. Freewheel, DAI, and MediaTailor are skipped.                                         |
+| `'mt'`        | Only creates the AWS MediaTailor tracker. Implies `mediatailor: true` if not already set.                                            |
+| `'automatic'` | Auto-detects the ad framework in use (IMA, Brightcove IMA, Freewheel, DAI, MediaTailor). Fallback only — prefer an explicit value.  |
+
+> **Best practice:** Always declare `adTracking` explicitly. Relying on auto-detection produces a warning in the console and can result in unexpected trackers being created if multiple ad frameworks are present on the page.
 
 ```javascript
 import { AD_TRACKING } from '@newrelic/video-videojs';
 
-// Disable ad tracking entirely
+// Recommended: explicit declaration
 const tracker = new VideojsTracker(player, { adTracking: 'none' });
-
-// Force IMA only
 const tracker = new VideojsTracker(player, { adTracking: AD_TRACKING.IMA });
-
-// Force MediaTailor only (self-contained — no need to also pass mediatailor: true)
 const tracker = new VideojsTracker(player, { adTracking: 'mt' });
 
 // Change at runtime before the first source loads
-tracker.setAdTracking('none');
+tracker.setAdTracking(AD_TRACKING.MT);
 ```
 
 ### QoE (Quality of Experience) Settings

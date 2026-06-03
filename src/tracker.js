@@ -33,6 +33,15 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
     this.daiInitialized = false;
     this.adTracking = (options && options.adTracking) || AD_TRACKING.AUTOMATIC;
 
+    // Warn when options are provided but adTracking is not explicitly set.
+    // Enterprise integrations should declare intent rather than relying on auto-detection.
+    if (options && options.adTracking === undefined) {
+      nrvideo.Log.warn(
+        'VideojsTracker: adTracking not specified — falling back to automatic ad framework ' +
+        'detection. Set adTracking explicitly (e.g. "ima", "mt", "none") for deterministic behaviour.'
+      );
+    }
+
     // adTracking:'mt' is self-contained — it implies mediatailor activation.
     // Normalize so MediaTailorAdsTracker.isUsing() returns true without requiring
     // the user to also pass mediatailor:true separately.
