@@ -306,6 +306,38 @@ if (shouldEnableTracking(currentUser.id)) {
 
 ## Configuration Options
 
+### Ad Tracking
+
+| Option        | Type   | Default       | Description                                                                                                                                         |
+| ------------- | ------ | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `adTracking`  | string | `'automatic'` | Controls which ad tracker is created. See values below.                                                                                             |
+| `mediatailor` | boolean / object | —   | Activates the AWS MediaTailor tracker. Pass `true` or an object with `{ trackingUrl, adSegmentPrefix }`. See [SSAI Guide](./docs/ssai.md).          |
+
+**`adTracking` values:**
+
+| Value         | Behaviour                                                                                              |
+| ------------- | ------------------------------------------------------------------------------------------------------ |
+| `'automatic'` | Auto-detects the ad framework in use (IMA, Brightcove IMA, Freewheel, DAI, MediaTailor). Default.     |
+| `'none'`      | Disables all ad tracking. No ad tracker is created.                                                    |
+| `'ima'`       | Only creates an IMA or Brightcove IMA tracker. Freewheel, DAI, and MediaTailor are skipped.            |
+| `'mt'`        | Only creates the AWS MediaTailor tracker. Implies `mediatailor: true` if not already set.              |
+
+```javascript
+import { AD_TRACKING } from '@newrelic/video-videojs';
+
+// Disable ad tracking entirely
+const tracker = new VideojsTracker(player, { adTracking: 'none' });
+
+// Force IMA only
+const tracker = new VideojsTracker(player, { adTracking: AD_TRACKING.IMA });
+
+// Force MediaTailor only (self-contained — no need to also pass mediatailor: true)
+const tracker = new VideojsTracker(player, { adTracking: 'mt' });
+
+// Change at runtime before the first source loads
+tracker.setAdTracking('none');
+```
+
 ### QoE (Quality of Experience) Settings
 
 | Option              | Type    | Default | Description                                                                                                                                                                              |
@@ -376,6 +408,19 @@ tracker.setOptions({
     episode: '3',
   },
 });
+```
+
+#### `tracker.setAdTracking(type)`
+
+Change the ad tracking mode after the tracker is created. Must be called before the first `loadstart` or `adsready` event to take effect.
+
+```javascript
+// Valid values: 'automatic' | 'none' | 'ima' | 'mt'
+tracker.setAdTracking('none');
+
+// Or use the exported constant to avoid magic strings
+import { AD_TRACKING } from '@newrelic/video-videojs';
+tracker.setAdTracking(AD_TRACKING.MT);
 ```
 
 ### Example: Complete Integration
@@ -480,14 +525,22 @@ The tracker automatically detects and tracks AWS MediaTailor SSAI streams. It su
 ```javascript
 import VideojsTracker from '@newrelic/video-videojs';
 
-// Initialize player with a MediaTailor playback URL
 player.src({
   src: 'https://your-mediatailor-endpoint.mediatailor.region.amazonaws.com/v1/master/...',
   type: 'application/x-mpegURL'
 });
 
-// Pass mediatailor: true to activate the MediaTailor tracker
+// Option A: explicit opt-in (existing approach)
 const tracker = new VideojsTracker(player, { mediatailor: true });
+
+// Option B: adTracking:'mt' — restricts to MediaTailor only and implies mediatailor:true
+const tracker = new VideojsTracker(player, { adTracking: 'mt' });
+
+// Option B with custom CDN config
+const tracker = new VideojsTracker(player, {
+  mediatailor: { adSegmentPrefix: '/my-cdn-path/' },
+  adTracking: 'mt',
+});
 ```
 
 The tracker will automatically:

@@ -10,6 +10,20 @@ import FreewheelAdsTracker from './ads/freewheel';
 import DaiAdsTracker from './ads/dai';
 import MediaTailorAdsTracker from './ads/media-tailor';
 
+/**
+ * Controls which ad tracker (if any) is created automatically.
+ *   automatic — auto-detect all frameworks (default, backward-compatible)
+ *   none      — disable all ad tracking
+ *   ima       — only IMA / Brightcove IMA trackers
+ *   mt        — only AWS MediaTailor tracker
+ */
+export const AD_TRACKING = {
+  AUTOMATIC: 'automatic',
+  NONE: 'none',
+  IMA: 'ima',
+  MT: 'mt',
+};
+
 export default class VideojsTracker extends nrvideo.VideoTracker {
   constructor(player, options) {
     super(player, options);
@@ -17,7 +31,36 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
     this.isContentEnd = false;
     this.imaAdCuePoints = '';
     this.daiInitialized = false;
+    this.adTracking = (options && options.adTracking) || AD_TRACKING.AUTOMATIC;
+
+    // adTracking:'mt' is self-contained — it implies mediatailor activation.
+    // Normalize so MediaTailorAdsTracker.isUsing() returns true without requiring
+    // the user to also pass mediatailor:true separately.
+    if (this.adTracking === AD_TRACKING.MT && !(this.options && this.options.mediatailor)) {
+      this.options = Object.assign({}, this.options, { mediatailor: true });
+    }
+
     nrvideo.Core.addTracker(this, options);
+  }
+
+  /**
+   * Sets the ad tracking mode at runtime.
+   * Must be called before the first loadstart / adsready event to take effect.
+   * @param {'automatic'|'none'|'ima'|'mt'} type
+   */
+  setAdTracking(type) {
+    const valid = Object.values(AD_TRACKING);
+    if (!valid.includes(type)) {
+      nrvideo.Log.warn(
+        `VideojsTracker.setAdTracking: unknown type "${type}". Valid values: ${valid.join(', ')}`
+      );
+      return;
+    }
+    this.adTracking = type;
+    if (type === AD_TRACKING.MT && !(this.options && this.options.mediatailor)) {
+      this.options = Object.assign({}, this.options, { mediatailor: true });
+    }
+    nrvideo.Log.debug(`VideojsTracker: adTracking set to "${type}"`);
   }
 
   getTech() {
@@ -323,9 +366,10 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
   onDownload(e) {
     this.sendDownload({ state: e.type });
 
-    // Check if MediaTailor should be used after the source is loaded
-    // Only check on 'loadstart' to avoid multiple checks
+    // Only attempt MediaTailor detection when adTracking allows it and on loadstart
     if (
+      this.adTracking !== AD_TRACKING.NONE &&
+      this.adTracking !== AD_TRACKING.IMA &&
       !this.adsTracker &&
       e.type === 'loadstart' &&
       MediaTailorAdsTracker.isUsing(this.player, this.options)
@@ -341,7 +385,11 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
 
   // DAI methods
   onStreamManager(event) {
-    if (!this.adsTracker && event.StreamManager) {
+    if (
+      this.adTracking === AD_TRACKING.AUTOMATIC &&
+      !this.adsTracker &&
+      event.StreamManager
+    ) {
       const daiTracker = new DaiAdsTracker(this.player);
       daiTracker.setStreamManager(event.StreamManager);
       this.setAdsTracker(daiTracker);
@@ -350,6 +398,14 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
   // DAI methods end
 
   onAdsready() {
+    // 'none' and 'mt' modes do not use client-side ad frameworks
+    if (
+      this.adTracking === AD_TRACKING.NONE ||
+      this.adTracking === AD_TRACKING.MT
+    ) {
+      return;
+    }
+
     if (!this.adsTracker) {
       if (BrightcoveImaAdsTracker.isUsing(this.player)) {
         // BC IMA
@@ -357,13 +413,15 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
       } else if (ImaAdsTracker.isUsing(this.player)) {
         // IMA
         this.setAdsTracker(new ImaAdsTracker(this.player));
-      } else if (FreewheelAdsTracker.isUsing(this.player)) {
-        // FW
-
+      } else if (
+        this.adTracking === AD_TRACKING.AUTOMATIC &&
+        FreewheelAdsTracker.isUsing(this.player)
+      ) {
+        // FW — only under automatic mode (not when explicitly requesting IMA)
         this.setAdsTracker(new FreewheelAdsTracker(this.player));
         // } else if (OnceAdsTracker.isUsing(this)) { // Once
-      } else {
-        // Generic
+      } else if (this.adTracking === AD_TRACKING.AUTOMATIC) {
+        // Generic — only under automatic mode
         this.setAdsTracker(new VideojsAdsTracker(this.player));
       }
     }
@@ -483,6 +541,7 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
 
 // Static members
 export {
+  AD_TRACKING,
   HlsJsTech,
   ContribHlsTech,
   ShakaTech,

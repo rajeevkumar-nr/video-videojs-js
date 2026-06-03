@@ -16,10 +16,29 @@ Customers should already have:
 
 ## Activation
 
-Pass `mediatailor: true` when initialising the tracker. This is required for all setups — default AWS hostnames and custom CDN domains alike.
+There are two ways to activate the MediaTailor tracker:
+
+**Option A — `mediatailor: true`** (existing approach, backward-compatible):
 
 ```javascript
 const tracker = new VideojsTracker(player, { mediatailor: true });
+```
+
+**Option B — `adTracking: 'mt'`** (new, self-contained shorthand):
+
+```javascript
+const tracker = new VideojsTracker(player, { adTracking: 'mt' });
+```
+
+`adTracking: 'mt'` implies `mediatailor: true` automatically, so there is no need to pass both. It also restricts the tracker so that no IMA, Freewheel, DAI, or generic ad tracker can be created — useful when you want to make the intent explicit in your code.
+
+If you need custom CDN config alongside the explicit mode, pass both:
+
+```javascript
+const tracker = new VideojsTracker(player, {
+  mediatailor: { adSegmentPrefix: '/your-path/' },
+  adTracking: 'mt',
+});
 ```
 
 ## What The Tracker Does Automatically
@@ -85,7 +104,7 @@ Some metadata can arrive after playback has already started if it is filled in f
 
 If MediaTailor tracking does not activate, verify:
 
-1. `mediatailor: true` is passed in the tracker options.
+1. Either `mediatailor: true` or `adTracking: 'mt'` is passed in the tracker options.
 2. Segment requests are reaching the player (check the Network tab).
 3. If using a custom CDN ad-segment path, verify `adSegmentPrefix` matches the path configured in the AWS MediaTailor console.
 
