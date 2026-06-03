@@ -14,28 +14,24 @@ import MediaTailorAdsTracker from './ads/media-tailor';
  * Explicit ad tracking modes.
  *
  * CSAI (Client-Side Ad Insertion)
- *   CSAI.ALL       — detect best match in order: Brightcove IMA → IMA → Freewheel → generic
- *   CSAI.IMA       — Google IMA or Brightcove IMA (ima3) only
- *   CSAI.FREEWHEEL — Freewheel only
+ *   All CSAI frameworks share the adsready event path. The tracker auto-detects
+ *   the right framework (Brightcove IMA → IMA → Freewheel → generic) — no sub-type needed.
  *
  * SSAI (Server-Side Ad Insertion) — sub-type is always required.
- *   Each SSAI platform needs its own SDK and cannot be auto-detected.
+ *   Each SSAI platform has its own SDK and a different activation path.
+ *   Cannot be auto-detected — declare which one you are using.
  *   SSAI.DAI — Google DAI (google.ima.dai.api)
  *   SSAI.MT  — AWS MediaTailor (implies mediatailor: true if not already set)
  *
  * If adTracking is not set, no ad tracking runs (safe default).
- * Extend by adding new keys to CSAI or SSAI — validation derives from this object.
+ * To add a new SSAI platform: add a key to SSAI — validation derives from this object.
  */
 export const AD_TRACKING = {
-  CSAI: {
-    ALL:       'csai',
-    IMA:       'csai:ima',
-    FREEWHEEL: 'csai:freewheel',
-  },
-  SSAI: {
+  CSAI: 'csai',
+  SSAI: Object.freeze({
     DAI: 'ssai:dai',
     MT:  'ssai:mt',
-  },
+  }),
 };
 
 export default class VideojsTracker extends nrvideo.VideoTracker {
@@ -52,7 +48,7 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
     if (options && !options.adTracking) {
       nrvideo.Log.warn(
         'VideojsTracker: adTracking not set — no ad tracking will run. ' +
-        'Set adTracking to enable it (e.g. AD_TRACKING.CSAI.IMA, AD_TRACKING.SSAI.MT).'
+        'Set adTracking to enable it (e.g. AD_TRACKING.CSAI, AD_TRACKING.SSAI.MT).'
       );
     }
 
@@ -68,10 +64,13 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
   /**
    * Sets the ad tracking mode at runtime.
    * Must be called before the first loadstart / adsready event to take effect.
-   * @param {'csai'|'csai:ima'|'csai:freewheel'|'ssai:dai'|'ssai:mt'} type
+   * @param {'csai'|'ssai:dai'|'ssai:mt'} type
    */
   setAdTracking(type) {
-    const valid = Object.values(AD_TRACKING).flatMap(group => Object.values(group));
+    const valid = [
+      AD_TRACKING.CSAI,
+      ...Object.values(AD_TRACKING.SSAI),
+    ];
     if (!valid.includes(type)) {
       nrvideo.Log.warn(
         `VideojsTracker.setAdTracking: unknown value "${type}". Valid values: ${valid.join(', ')}`
@@ -415,24 +414,19 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
   // DAI methods end
 
   onAdsready() {
-    // Only CSAI modes go through the adsready path.
-    // null (not set) or SSAI values → no tracking, skip.
-    if (!this.adTracking || !this.adTracking.startsWith('csai')) return;
+    // Only CSAI goes through the adsready path — SSAI platforms use different events.
+    // No sub-type needed: all CSAI frameworks share this path and are auto-detected.
+    if (this.adTracking !== AD_TRACKING.CSAI) return;
 
     if (!this.adsTracker) {
-      const all = this.adTracking === AD_TRACKING.CSAI.ALL;
-      const isIma = all || this.adTracking === AD_TRACKING.CSAI.IMA;
-      const isFw  = all || this.adTracking === AD_TRACKING.CSAI.FREEWHEEL;
-
-      if (isIma && BrightcoveImaAdsTracker.isUsing(this.player)) {
+      if (BrightcoveImaAdsTracker.isUsing(this.player)) {
         this.setAdsTracker(new BrightcoveImaAdsTracker(this.player));
-      } else if (isIma && ImaAdsTracker.isUsing(this.player)) {
+      } else if (ImaAdsTracker.isUsing(this.player)) {
         this.setAdsTracker(new ImaAdsTracker(this.player));
-      } else if (isFw && FreewheelAdsTracker.isUsing(this.player)) {
+      } else if (FreewheelAdsTracker.isUsing(this.player)) {
         // } else if (OnceAdsTracker.isUsing(this)) { // Once
         this.setAdsTracker(new FreewheelAdsTracker(this.player));
-      } else if (all) {
-        // Generic contrib-ads fallback — only under CSAI.ALL
+      } else {
         this.setAdsTracker(new VideojsAdsTracker(this.player));
       }
     }

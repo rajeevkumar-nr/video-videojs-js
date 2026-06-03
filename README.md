@@ -308,23 +308,19 @@ if (shouldEnableTracking(currentUser.id)) {
 
 ### Ad Tracking
 
-The `adTracking` option declares which ad framework the tracker should wire up. **If not set, no ad tracking runs** — this is the safe default. Omitting it while passing other options triggers a console warning.
-
-Ad tracking modes are organised into two categories:
+The `adTracking` option declares which ad category the tracker should wire up. **If not set, no ad tracking runs** — this is the safe default. Omitting it while passing other options triggers a console warning.
 
 #### CSAI — Client-Side Ad Insertion
 
-All CSAI frameworks activate through the `adsready` event. Specify the exact framework or use `CSAI.ALL` to detect the best match.
+All CSAI frameworks (IMA, Brightcove IMA, Freewheel) share the `adsready` event path. The tracker auto-detects which one is present — no sub-type needed. Just declare `CSAI`.
 
-| Value              | Constant                     | Behaviour                                                              |
-| ------------------ | ---------------------------- | ---------------------------------------------------------------------- |
-| `'csai'`           | `AD_TRACKING.CSAI.ALL`       | Detect best match: Brightcove IMA → IMA → Freewheel → generic         |
-| `'csai:ima'`       | `AD_TRACKING.CSAI.IMA`       | Google IMA or Brightcove IMA (ima3) only                               |
-| `'csai:freewheel'` | `AD_TRACKING.CSAI.FREEWHEEL` | Freewheel only                                                         |
+| Value    | Constant         | Behaviour                                                                  |
+| -------- | ---------------- | -------------------------------------------------------------------------- |
+| `'csai'` | `AD_TRACKING.CSAI` | Auto-detects: Brightcove IMA → IMA → Freewheel → generic fallback       |
 
 #### SSAI — Server-Side Ad Insertion
 
-Each SSAI platform requires its own SDK and cannot be auto-detected. **A sub-type is always required.**
+Each SSAI platform has its own SDK and a completely different activation path — they cannot be auto-detected. **A sub-type is always required.**
 
 | Value        | Constant               | Behaviour                                                               |
 | ------------ | ---------------------- | ----------------------------------------------------------------------- |
@@ -334,12 +330,10 @@ Each SSAI platform requires its own SDK and cannot be auto-detected. **A sub-typ
 ```javascript
 import { AD_TRACKING } from '@newrelic/video-videojs';
 
-// CSAI
-new VideojsTracker(player, { adTracking: AD_TRACKING.CSAI.ALL });
-new VideojsTracker(player, { adTracking: AD_TRACKING.CSAI.IMA });
-new VideojsTracker(player, { adTracking: AD_TRACKING.CSAI.FREEWHEEL });
+// CSAI — one value covers all client-side frameworks
+new VideojsTracker(player, { adTracking: AD_TRACKING.CSAI });
 
-// SSAI — sub-type required
+// SSAI — sub-type always required
 new VideojsTracker(player, { adTracking: AD_TRACKING.SSAI.DAI });
 new VideojsTracker(player, { adTracking: AD_TRACKING.SSAI.MT });
 
@@ -350,10 +344,10 @@ new VideojsTracker(player, {
 });
 
 // Change at runtime before first loadstart / adsready
-tracker.setAdTracking(AD_TRACKING.CSAI.IMA);
+tracker.setAdTracking(AD_TRACKING.CSAI);
 ```
 
-> **Extending later:** add a new key under `AD_TRACKING.CSAI` or `AD_TRACKING.SSAI` in `tracker.js` and handle it in the relevant detection method. No other changes needed.
+> **Extending later:** add a new key to `AD_TRACKING.SSAI` — validation derives from the object automatically. No other changes needed.
 
 > **`mediatailor` option:** still accepted for MediaTailor-specific config (`trackingUrl`, `adSegmentPrefix`). See [SSAI Guide](./docs/ssai.md).
 
@@ -436,8 +430,8 @@ Change the ad tracking mode after the tracker is created. Must be called before 
 ```javascript
 import { AD_TRACKING } from '@newrelic/video-videojs';
 
-// Valid values: 'csai' | 'csai:ima' | 'csai:freewheel' | 'ssai:dai' | 'ssai:mt'
-tracker.setAdTracking(AD_TRACKING.CSAI.IMA);
+// Valid values: 'csai' | 'ssai:dai' | 'ssai:mt'
+tracker.setAdTracking(AD_TRACKING.CSAI);
 tracker.setAdTracking(AD_TRACKING.SSAI.MT);
 ```
 
@@ -502,11 +496,9 @@ The tracker captures four distinct bitrate metrics providing complete quality an
 
 ### Supported Ad Technologies
 
-| Category | Framework | Constant |
+| Category | Frameworks detected | Constant |
 |---|---|---|
-| CSAI | Google IMA / Brightcove IMA | `AD_TRACKING.CSAI.IMA` |
-| CSAI | Freewheel | `AD_TRACKING.CSAI.FREEWHEEL` |
-| CSAI | Auto-detect (all CSAI) | `AD_TRACKING.CSAI.ALL` |
+| CSAI | Google IMA, Brightcove IMA, Freewheel, generic | `AD_TRACKING.CSAI` |
 | SSAI | Google DAI | `AD_TRACKING.SSAI.DAI` |
 | SSAI | AWS MediaTailor | `AD_TRACKING.SSAI.MT` |
 
@@ -516,7 +508,6 @@ See [Configuration Options → Ad Tracking](#ad-tracking) for full usage and exa
 
 ```javascript
 import { AD_TRACKING } from '@newrelic/video-videojs';
-
 const tracker = new VideojsTracker(player, { adTracking: AD_TRACKING.SSAI.DAI });
 ```
 
@@ -534,7 +525,6 @@ player.src({
   type: 'application/x-mpegURL'
 });
 
-// Standard setup
 const tracker = new VideojsTracker(player, { adTracking: AD_TRACKING.SSAI.MT });
 
 // With custom CDN config

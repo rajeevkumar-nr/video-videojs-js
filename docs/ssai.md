@@ -16,7 +16,7 @@ Customers should already have:
 
 ## Activation
 
-Use `adTracking: AD_TRACKING.SSAI.MT` to activate the MediaTailor tracker. This is the standard approach — it declares intent explicitly and ensures no other ad tracker is created alongside it.
+Use `adTracking: AD_TRACKING.SSAI.MT` to activate the MediaTailor tracker. SSAI platforms cannot be auto-detected — each one has its own SDK and activation path, so declaring the sub-type is always required.
 
 ```javascript
 import { AD_TRACKING } from '@newrelic/video-videojs';
@@ -24,7 +24,7 @@ import { AD_TRACKING } from '@newrelic/video-videojs';
 const tracker = new VideojsTracker(player, { adTracking: AD_TRACKING.SSAI.MT });
 ```
 
-`AD_TRACKING.SSAI.MT` implies `mediatailor: true` internally, so you do not need to pass it separately. If you need custom CDN config, pass it via the `mediatailor` option alongside `adTracking`:
+`AD_TRACKING.SSAI.MT` implies `mediatailor: true` internally, so you do not need to pass it separately. If you need custom CDN config, pass it via the `mediatailor` option:
 
 ```javascript
 const tracker = new VideojsTracker(player, {
@@ -32,8 +32,6 @@ const tracker = new VideojsTracker(player, {
   mediatailor: { adSegmentPrefix: '/your-path/' },
 });
 ```
-
-> **SSAI always requires a sub-type.** There is no `AD_TRACKING.SSAI.ALL` — each SSAI platform (MediaTailor, Google DAI) needs its own SDK and cannot be auto-detected. Always declare which one you are using.
 
 ## What The Tracker Does Automatically
 
