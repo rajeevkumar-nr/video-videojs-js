@@ -126,7 +126,8 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
       if (tech?.vhs?.playlists?.media()) {
         const activePlaylist = tech.vhs.playlists.media();
         // Use AVERAGE-BANDWIDTH if available, fallback to BANDWIDTH
-        const bitrate = activePlaylist.attributes['AVERAGE-BANDWIDTH'] ||
+        const bitrate =
+          activePlaylist.attributes['AVERAGE-BANDWIDTH'] ||
           activePlaylist.attributes.BANDWIDTH ||
           null;
         return bitrate !== null ? Math.round(bitrate) : null;
@@ -276,6 +277,7 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
     this.onTimeupdate = this.onTimeupdate.bind(this);
     this.OnAdsAllpodsCompleted = this.OnAdsAllpodsCompleted.bind(this);
     this.onStreamManager = this.onStreamManager.bind(this);
+    this.onCanPlayThrough = this.onCanPlayThrough.bind(this);
 
     this.player.on('loadstart', this.onDownload);
     this.player.on('loadeddata', this.onDownload);
@@ -296,6 +298,7 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
     this.player.on('timeupdate', this.onTimeupdate);
     this.player.on('ads-allpods-completed', this.OnAdsAllpodsCompleted);
     this.player.on('stream-manager', this.onStreamManager);
+    this.player.on('canplaythrough', this.onCanPlayThrough);
   }
 
   unregisterListeners() {
@@ -318,6 +321,7 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
     this.player.off('timeupdate', this.onTimeupdate);
     this.player.off('ads-allpods-completed', this.OnAdsAllpodsCompleted);
     this.player.off('stream-manager', this.onStreamManager);
+    this.player.off('canplaythrough', this.onCanPlayThrough);
   }
 
   onDownload(e) {
@@ -331,7 +335,7 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
       MediaTailorAdsTracker.isUsing(this.player)
     ) {
       console.log(
-        'VideojsTracker: Creating MediaTailorAdsTracker after source load'
+        'VideojsTracker: Creating MediaTailorAdsTracker after source load',
       );
       this.setAdsTracker(new MediaTailorAdsTracker(this.player, this.options));
       // MediaTailor SSAI starts with content, not ads (unlike client-side ad frameworks)
@@ -393,6 +397,11 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
    * @returns {boolean} True if ads are playing
    */
   isAdsTrackerActive() {
+    // For CSAI: videojs-contrib-ads manages ad state exclusively
+    if (this.player.ads) {
+      return this.player.ads.state === 'ads-playback';
+    }
+    // For SSAI (no player.ads): check tracker's isAd flag (manually toggled)
     return this.adsTracker && this.adsTracker.isAd && this.adsTracker.isAd();
   }
 
@@ -410,6 +419,16 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
       return;
     }
     this.sendPause();
+  }
+
+  onCanPlayThrough() {
+    // Don't send CONTENT_BUFFER_END if ads are playing (ads tracker handles it)
+    if (this.isAdsTrackerActive()) {
+      return;
+    }
+    // Send BUFFER_END when buffer fills, even if paused
+    // This ensures accurate buffer duration metrics when user pauses during buffering
+    this.sendBufferEnd();
   }
 
   onPlaying() {
