@@ -548,9 +548,13 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
   }
 }
 
+// Attach AD_TRACKING and Log as static properties so UMD callers can use
+// VideojsTracker.AD_TRACKING and VideojsTracker.Log without importing named exports.
+VideojsTracker.AD_TRACKING = AD_TRACKING;
+VideojsTracker.Log = nrvideo.Log;
+
 // Static members
 export {
-  AD_TRACKING,
   HlsJsTech,
   ContribHlsTech,
   ShakaTech,

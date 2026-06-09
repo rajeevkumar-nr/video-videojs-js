@@ -23,6 +23,7 @@ import {
   parseHlsManifestForAdBreaks,
   parseDashManifestForAdBreaks,
   detectAdBreaksFromVhsPlaylist,
+  whichAdSegmentMarker,
   enrichAdScheduleWithTrackingMetadata,
   extractHlsTargetDurationSeconds,
   extractDashMinimumUpdatePeriodSeconds,
@@ -104,6 +105,12 @@ export default class MediaTailorAdsTracker extends VideojsAdsTracker {
     // detected automatically via MT_DEFAULT_AD_SEGMENT_PATH ('/tm/') and do not
     // need this override.
     this.adSegmentPrefix = mtOptions.adSegmentPrefix || null;
+
+    if (this.adSegmentPrefix) {
+      Log.debug(`[MT] ad segment detection: custom prefix "${this.adSegmentPrefix}"`);
+    } else {
+      Log.debug('[MT] ad segment detection: default (segments.mediatailor hostname or /tm/ path)');
+    }
 
     // Ad tracking state
     this.adSchedule = [];
@@ -713,6 +720,17 @@ export default class MediaTailorAdsTracker extends VideojsAdsTracker {
     });
 
     if (ads.length > 0) {
+      // Log which detection path matched — only on first detection to avoid noise
+      if (!this._detectionPathLogged) {
+        const firstSeg = playlist.segments && playlist.segments.find(s =>
+          whichAdSegmentMarker(s, { adSegmentPrefix: this.adSegmentPrefix })
+        );
+        if (firstSeg) {
+          const path = whichAdSegmentMarker(firstSeg, { adSegmentPrefix: this.adSegmentPrefix });
+          Log.debug(`[MT] ad segment detection matched via: ${path}`);
+          this._detectionPathLogged = true;
+        }
+      }
       Log.debug(
         `[MT - ${getTimestamp()}] VHS detected ${ads.length} ad break(s), ${ads.reduce(
           (sum, ab) => sum + ab.pods.length,
