@@ -11,7 +11,7 @@ import DaiAdsTracker from './ads/dai';
 import MediaTailorAdsTracker from './ads/media-tailor';
 
 /**
- * Explicit ad tracking modes.
+ * Explicit ad tracking modes. Pass via config.ad.type.
  *
  * CSAI (Client-Side Ad Insertion)
  *   All CSAI frameworks share the adsready event path. The tracker auto-detects
@@ -21,9 +21,9 @@ import MediaTailorAdsTracker from './ads/media-tailor';
  *   Each SSAI platform has its own SDK and a different activation path.
  *   Cannot be auto-detected — declare which one you are using.
  *   SSAI.DAI — Google DAI (google.ima.dai.api)
- *   SSAI.MT  — AWS MediaTailor (implies mediatailor: true if not already set)
+ *   SSAI.MT  — AWS MediaTailor
  *
- * If adTracking is not set, no ad tracking runs (safe default).
+ * If config.ad is not set, no ad tracking runs (safe default).
  * To add a new SSAI platform: add a key to SSAI — validation derives from this object.
  */
 export const AD_TRACKING = {
@@ -41,21 +41,28 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
     this.isContentEnd = false;
     this.imaAdCuePoints = '';
     this.daiInitialized = false;
-    this.adTracking = (options && options.adTracking) || null;
+    this.adTracking = options?.config?.ad?.type || null;
 
-    // When options are provided but adTracking is not declared, no ad tracking
+    // When options are provided but config.ad is not declared, no ad tracking
     // will run. Warn so the caller knows to set it explicitly.
-    if (options && !options.adTracking) {
+    if (options && !this.adTracking) {
       nrvideo.Log.warn(
-        'VideojsTracker: adTracking not set — no ad tracking will run. ' +
-        'Set adTracking to enable it (e.g. AD_TRACKING.CSAI, AD_TRACKING.SSAI.MT).'
+        'VideojsTracker: config.ad not set — no ad tracking will run. ' +
+        'Set config.ad.type to enable it (e.g. AD_TRACKING.CSAI, AD_TRACKING.SSAI.MT).'
       );
     }
 
-    // SSAI.MT is self-contained — implies mediatailor:true so the MT tracker
-    // activates without requiring a separate mediatailor option.
-    if (this.adTracking === AD_TRACKING.SSAI.MT && !(this.options && this.options.mediatailor)) {
-      this.options = Object.assign({}, this.options, { mediatailor: true });
+    // Merge config.ad options (segmentPrefix, trackingUrl) into the internal
+    // mediatailor object that MediaTailorAdsTracker reads.
+    if (this.adTracking === AD_TRACKING.SSAI.MT) {
+      const adConfig = options?.config?.ad || {};
+      this.options = Object.assign({}, this.options, {
+        mediatailor: {
+          segmentPrefix: adConfig.segmentPrefix,
+          trackingUrl:   adConfig.trackingUrl,
+          ...this.options?.mediatailor,
+        },
+      });
     }
 
     nrvideo.Core.addTracker(this, options);
@@ -78,9 +85,6 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
       return;
     }
     this.adTracking = type;
-    if (type === AD_TRACKING.SSAI.MT && !(this.options && this.options.mediatailor)) {
-      this.options = Object.assign({}, this.options, { mediatailor: true });
-    }
     nrvideo.Log.debug(`VideojsTracker: adTracking set to "${type}"`);
   }
 

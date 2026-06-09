@@ -308,7 +308,7 @@ if (shouldEnableTracking(currentUser.id)) {
 
 ### Ad Tracking
 
-The `adTracking` option declares which ad category the tracker should wire up. **If not set, no ad tracking runs** — this is the safe default. Omitting it while passing other options triggers a console warning.
+`config.ad.type` declares which ad category the tracker should wire up. **If not set, no ad tracking runs** — this is the safe default. Omitting it while passing other options triggers a console warning.
 
 #### CSAI — Client-Side Ad Insertion
 
@@ -325,22 +325,26 @@ Each SSAI platform has its own SDK and a completely different activation path �
 | Value        | Constant               | Behaviour                                                               |
 | ------------ | ---------------------- | ----------------------------------------------------------------------- |
 | `'ssai:dai'` | `AD_TRACKING.SSAI.DAI` | Google DAI (`google.ima.dai.api`)                                       |
-| `'ssai:mt'`  | `AD_TRACKING.SSAI.MT`  | AWS MediaTailor — implies `mediatailor: true` if not already set        |
+| `'ssai:mt'`  | `AD_TRACKING.SSAI.MT`  | AWS MediaTailor                                                         |
 
 ```javascript
 import { AD_TRACKING } from '@newrelic/video-videojs';
 
 // CSAI — one value covers all client-side frameworks
-new VideojsTracker(player, { adTracking: AD_TRACKING.CSAI });
+new VideojsTracker(player, { config: { ad: { type: AD_TRACKING.CSAI } } });
 
 // SSAI — sub-type always required
-new VideojsTracker(player, { adTracking: AD_TRACKING.SSAI.DAI });
-new VideojsTracker(player, { adTracking: AD_TRACKING.SSAI.MT });
+new VideojsTracker(player, { config: { ad: { type: AD_TRACKING.SSAI.DAI } } });
+new VideojsTracker(player, { config: { ad: { type: AD_TRACKING.SSAI.MT } } });
 
 // SSAI.MT with custom CDN config
 new VideojsTracker(player, {
-  adTracking: AD_TRACKING.SSAI.MT,
-  mediatailor: { adSegmentPrefix: '/my-cdn-path/' },
+  config: {
+    ad: {
+      type: AD_TRACKING.SSAI.MT,
+      segmentPrefix: '/my-cdn-path/',
+    },
+  },
 });
 
 // Change at runtime before first loadstart / adsready
@@ -348,8 +352,6 @@ tracker.setAdTracking(AD_TRACKING.CSAI);
 ```
 
 > **Extending later:** add a new key to `AD_TRACKING.SSAI` — validation derives from the object automatically. No other changes needed.
-
-> **`mediatailor` option:** still accepted for MediaTailor-specific config (`trackingUrl`, `adSegmentPrefix`). See [SSAI Guide](./docs/ssai.md).
 
 ### QoE (Quality of Experience) Settings
 
@@ -508,7 +510,7 @@ See [Configuration Options → Ad Tracking](#ad-tracking) for full usage and exa
 
 ```javascript
 import { AD_TRACKING } from '@newrelic/video-videojs';
-const tracker = new VideojsTracker(player, { adTracking: AD_TRACKING.SSAI.DAI });
+const tracker = new VideojsTracker(player, { config: { ad: { type: AD_TRACKING.SSAI.DAI } } });
 ```
 
 See [samples/dai/index.html](./samples/dai/index.html) for a complete example.
@@ -525,12 +527,16 @@ player.src({
   type: 'application/x-mpegURL'
 });
 
-const tracker = new VideojsTracker(player, { adTracking: AD_TRACKING.SSAI.MT });
+const tracker = new VideojsTracker(player, { config: { ad: { type: AD_TRACKING.SSAI.MT } } });
 
 // With custom CDN config
 const tracker = new VideojsTracker(player, {
-  adTracking: AD_TRACKING.SSAI.MT,
-  mediatailor: { adSegmentPrefix: '/my-cdn-path/' },
+  config: {
+    ad: {
+      type: AD_TRACKING.SSAI.MT,
+      segmentPrefix: '/my-cdn-path/',
+    },
+  },
 });
 ```
 

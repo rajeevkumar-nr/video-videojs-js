@@ -16,20 +16,26 @@ Customers should already have:
 
 ## Activation
 
-Use `adTracking: AD_TRACKING.SSAI.MT` to activate the MediaTailor tracker. SSAI platforms cannot be auto-detected — each one has its own SDK and activation path, so declaring the sub-type is always required.
+Set `config.ad.type` to `AD_TRACKING.SSAI.MT` to activate the MediaTailor tracker. SSAI platforms cannot be auto-detected — each one has its own SDK and activation path, so declaring the sub-type is always required.
 
 ```javascript
 import { AD_TRACKING } from '@newrelic/video-videojs';
 
-const tracker = new VideojsTracker(player, { adTracking: AD_TRACKING.SSAI.MT });
+const tracker = new VideojsTracker(player, {
+  config: { ad: { type: AD_TRACKING.SSAI.MT } },
+});
 ```
 
-`AD_TRACKING.SSAI.MT` implies `mediatailor: true` internally, so you do not need to pass it separately. If you need custom CDN config, pass it via the `mediatailor` option:
+All MediaTailor-specific options live alongside `type` in `config.ad`. If you need custom CDN config:
 
 ```javascript
 const tracker = new VideojsTracker(player, {
-  adTracking: AD_TRACKING.SSAI.MT,
-  mediatailor: { adSegmentPrefix: '/your-path/' },
+  config: {
+    ad: {
+      type: AD_TRACKING.SSAI.MT,
+      segmentPrefix: '/your-path/',
+    },
+  },
 });
 ```
 
@@ -45,13 +51,18 @@ For MediaTailor streams, the tracker automatically:
 
 ## Custom CDN / Custom Domain
 
-If you have configured CDN segment prefixes in the AWS MediaTailor console, `mediatailor: true` is still all you need. The tracker detects ad segments automatically using the AWS-recommended `/tm/` ad-segment path convention.
+If you have configured CDN segment prefixes in the AWS MediaTailor console, the tracker detects ad segments automatically using the AWS-recommended `/tm/` ad-segment path convention — no extra config needed.
 
 If your CDN ad-segment prefix uses a non-standard path (not `/tm/`), pass the path as an override:
 
 ```javascript
 const tracker = new VideojsTracker(player, {
-  mediatailor: { adSegmentPrefix: '/your-path/' }
+  config: {
+    ad: {
+      type: AD_TRACKING.SSAI.MT,
+      segmentPrefix: '/your-path/',
+    },
+  },
 });
 ```
 
@@ -96,7 +107,7 @@ Some metadata can arrive after playback has already started if it is filled in f
 
 If MediaTailor tracking does not activate, verify:
 
-1. `adTracking: AD_TRACKING.SSAI.MT` is passed in the tracker options.
+1. `config.ad.type: AD_TRACKING.SSAI.MT` is set in the tracker options.
 2. Segment requests are reaching the player (check the Network tab).
 3. If using a custom CDN ad-segment path, verify `adSegmentPrefix` matches the path configured in the AWS MediaTailor console.
 
