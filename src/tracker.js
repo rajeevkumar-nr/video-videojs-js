@@ -418,19 +418,29 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
   // DAI methods end
 
   onAdsready() {
-    // Only CSAI goes through the adsready path — SSAI platforms use different events.
-    // No sub-type needed: all CSAI frameworks share this path and are auto-detected.
-    if (this.adTracking !== AD_TRACKING.CSAI) return;
+    // SSAI platforms never fire adsready — skip if explicitly set to an SSAI type.
+    if (this.adTracking && this.adTracking !== AD_TRACKING.CSAI) return;
+
+    // If config.ad.type was not set, fall back to auto-detection for backward compat.
+    if (!this.adTracking) {
+      nrvideo.Log.warn(
+        'VideojsTracker: adsready fired but config.ad.type is not set — ' +
+        'attempting CSAI auto-detection for backward compatibility.'
+      );
+    }
 
     if (!this.adsTracker) {
       if (BrightcoveImaAdsTracker.isUsing(this.player)) {
+        nrvideo.Log.debug('VideojsTracker: auto-detected BrightcoveImaAdsTracker');
         this.setAdsTracker(new BrightcoveImaAdsTracker(this.player));
       } else if (ImaAdsTracker.isUsing(this.player)) {
+        nrvideo.Log.debug('VideojsTracker: auto-detected ImaAdsTracker');
         this.setAdsTracker(new ImaAdsTracker(this.player));
       } else if (FreewheelAdsTracker.isUsing(this.player)) {
-        // } else if (OnceAdsTracker.isUsing(this)) { // Once
+        nrvideo.Log.debug('VideojsTracker: auto-detected FreewheelAdsTracker');
         this.setAdsTracker(new FreewheelAdsTracker(this.player));
       } else {
+        nrvideo.Log.debug('VideojsTracker: no specific CSAI framework detected, using generic VideojsAdsTracker');
         this.setAdsTracker(new VideojsAdsTracker(this.player));
       }
     }
