@@ -418,10 +418,10 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
   // DAI methods end
 
   onAdsready() {
-    // SSAI platforms never fire adsready — skip if explicitly set to an SSAI type.
-    if (this.adTracking && this.adTracking !== AD_TRACKING.CSAI) return;
+    // SSAI platforms never fire adsready — skip when an SSAI type is explicitly set.
+    if (Object.values(AD_TRACKING.SSAI).includes(this.adTracking)) return;
 
-    // If config.ad.type was not set, fall back to auto-detection for backward compat.
+    // config.ad.type is not set — warn and fall back to auto-detection.
     if (!this.adTracking) {
       nrvideo.Log.warn(
         'VideojsTracker: adsready fired but config.ad.type is not set — ' +
