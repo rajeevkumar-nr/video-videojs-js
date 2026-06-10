@@ -102,6 +102,20 @@ export function isMediaTailorSegment(segment, { adSegmentPrefix } = {}) {
   );
 }
 
+export function whichAdSegmentMarker(segment, { adSegmentPrefix } = {}) {
+  const labeled = [
+    { marker: MT_SEGMENT_PATTERN,        label: 'aws-hostname (segments.mediatailor)' },
+    { marker: MT_DEFAULT_AD_SEGMENT_PATH, label: 'default-cdn-path (/tm/)' },
+  ];
+  if (adSegmentPrefix) labeled.push({ marker: adSegmentPrefix, label: `custom-prefix (${adSegmentPrefix})` });
+
+  const mapUri = (segment.map && segment.map.uri) || '';
+  const segUri = segment.uri || '';
+
+  const hit = labeled.find(({ marker }) => mapUri.includes(marker) || segUri.includes(marker));
+  return hit ? hit.label : null;
+}
+
 /**
  * Determines ad position based on schedule index (VOD only, Live returns null)
  */

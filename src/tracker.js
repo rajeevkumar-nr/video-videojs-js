@@ -10,6 +10,30 @@ import FreewheelAdsTracker from './ads/freewheel';
 import DaiAdsTracker from './ads/dai';
 import MediaTailorAdsTracker from './ads/media-tailor';
 
+/**
+ * Explicit ad tracking modes. Pass via config.ad.type.
+ *
+ * CSAI (Client-Side Ad Insertion)
+ *   All CSAI frameworks share the adsready event path. The tracker auto-detects
+ *   the right framework (Brightcove IMA → IMA → Freewheel → generic) — no sub-type needed.
+ *
+ * SSAI (Server-Side Ad Insertion) — sub-type is always required.
+ *   Each SSAI platform has its own SDK and a different activation path.
+ *   Cannot be auto-detected — declare which one you are using.
+ *   SSAI.DAI — Google DAI (google.ima.dai.api)
+ *   SSAI.MT  — AWS MediaTailor
+ *
+ * If config.ad is not set, no ad tracking runs (safe default).
+ * To add a new SSAI platform: add a key to SSAI — validation derives from this object.
+ */
+export const AD_TRACKING = {
+  CSAI: 'csai',
+  SSAI: Object.freeze({
+    DAI: 'ssai:dai',
+    MT:  'ssai:mt',
+  }),
+};
+
 export default class VideojsTracker extends nrvideo.VideoTracker {
   constructor(player, options) {
     super(player, options);
@@ -17,7 +41,51 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
     this.isContentEnd = false;
     this.imaAdCuePoints = '';
     this.daiInitialized = false;
+    this.adTracking = options?.config?.ad?.type || null;
+
+    // When options are provided but config.ad is not declared, no ad tracking
+    // will run. Warn so the caller knows to set it explicitly.
+    if (options && !this.adTracking) {
+      nrvideo.Log.warn(
+        'VideojsTracker: config.ad not set — no ad tracking will run. ' +
+        'Set config.ad.type to enable it (e.g. AD_TRACKING.CSAI, AD_TRACKING.SSAI.MT).'
+      );
+    }
+
+    // Merge config.ad options (segmentPrefix, trackingUrl) into the internal
+    // mediatailor object that MediaTailorAdsTracker reads.
+    if (this.adTracking === AD_TRACKING.SSAI.MT) {
+      const adConfig = options?.config?.ad || {};
+      this.options = Object.assign({}, this.options, {
+        mediatailor: {
+          segmentPrefix: adConfig.segmentPrefix,
+          trackingUrl:   adConfig.trackingUrl,
+          ...this.options?.mediatailor,
+        },
+      });
+    }
+
     nrvideo.Core.addTracker(this, options);
+  }
+
+  /**
+   * Sets the ad tracking mode at runtime.
+   * Must be called before the first loadstart / adsready event to take effect.
+   * @param {'csai'|'ssai:dai'|'ssai:mt'} type
+   */
+  setAdTracking(type) {
+    const valid = [
+      AD_TRACKING.CSAI,
+      ...Object.values(AD_TRACKING.SSAI),
+    ];
+    if (!valid.includes(type)) {
+      nrvideo.Log.warn(
+        `VideojsTracker.setAdTracking: unknown value "${type}". Valid values: ${valid.join(', ')}`
+      );
+      return;
+    }
+    this.adTracking = type;
+    nrvideo.Log.debug(`VideojsTracker: adTracking set to "${type}"`);
   }
 
   getTech() {
@@ -323,25 +391,25 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
   onDownload(e) {
     this.sendDownload({ state: e.type });
 
-    // Check if MediaTailor should be used after the source is loaded
-    // Only check on 'loadstart' to avoid multiple checks
     if (
+      this.adTracking === AD_TRACKING.SSAI.MT &&
       !this.adsTracker &&
-      e.type === 'loadstart' &&
-      MediaTailorAdsTracker.isUsing(this.player, this.options)
+      e.type === 'loadstart'
     ) {
-      nrvideo.Log.debug(
-        'VideojsTracker: Creating MediaTailorAdsTracker after source load'
-      );
+      nrvideo.Log.debug('VideojsTracker: Creating MediaTailorAdsTracker');
       this.setAdsTracker(new MediaTailorAdsTracker(this.player, this.options));
-      // MediaTailor SSAI starts with content, not ads (unlike client-side ad frameworks)
+      // MediaTailor SSAI starts with content, not ads (unlike client-side frameworks)
       this.adsTracker.setIsAd(false);
     }
   }
 
   // DAI methods
   onStreamManager(event) {
-    if (!this.adsTracker && event.StreamManager) {
+    if (
+      this.adTracking === AD_TRACKING.SSAI.DAI &&
+      !this.adsTracker &&
+      event.StreamManager
+    ) {
       const daiTracker = new DaiAdsTracker(this.player);
       daiTracker.setStreamManager(event.StreamManager);
       this.setAdsTracker(daiTracker);
@@ -350,20 +418,29 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
   // DAI methods end
 
   onAdsready() {
+    // SSAI platforms never fire adsready — skip when an SSAI type is explicitly set.
+    if (Object.values(AD_TRACKING.SSAI).includes(this.adTracking)) return;
+
+    // config.ad.type is not set — warn and fall back to auto-detection.
+    if (!this.adTracking) {
+      nrvideo.Log.warn(
+        'VideojsTracker: adsready fired but config.ad.type is not set — ' +
+        'attempting CSAI auto-detection for backward compatibility.'
+      );
+    }
+
     if (!this.adsTracker) {
       if (BrightcoveImaAdsTracker.isUsing(this.player)) {
-        // BC IMA
+        nrvideo.Log.debug('VideojsTracker: auto-detected BrightcoveImaAdsTracker');
         this.setAdsTracker(new BrightcoveImaAdsTracker(this.player));
       } else if (ImaAdsTracker.isUsing(this.player)) {
-        // IMA
+        nrvideo.Log.debug('VideojsTracker: auto-detected ImaAdsTracker');
         this.setAdsTracker(new ImaAdsTracker(this.player));
       } else if (FreewheelAdsTracker.isUsing(this.player)) {
-        // FW
-
+        nrvideo.Log.debug('VideojsTracker: auto-detected FreewheelAdsTracker');
         this.setAdsTracker(new FreewheelAdsTracker(this.player));
-        // } else if (OnceAdsTracker.isUsing(this)) { // Once
       } else {
-        // Generic
+        nrvideo.Log.debug('VideojsTracker: no specific CSAI framework detected, using generic VideojsAdsTracker');
         this.setAdsTracker(new VideojsAdsTracker(this.player));
       }
     }
@@ -481,6 +558,11 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
   }
 }
 
+// Attach AD_TRACKING and Log as static properties so UMD callers can use
+// VideojsTracker.AD_TRACKING and VideojsTracker.Log without importing named exports.
+VideojsTracker.AD_TRACKING = AD_TRACKING;
+VideojsTracker.Log = nrvideo.Log;
+
 // Static members
 export {
   HlsJsTech,
@@ -490,5 +572,6 @@ export {
   ImaAdsTracker,
   BrightcoveImaAdsTracker,
   FreewheelAdsTracker,
+  DaiAdsTracker,
   MediaTailorAdsTracker,
 };
