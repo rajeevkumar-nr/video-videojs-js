@@ -109,7 +109,7 @@ If MediaTailor tracking does not activate, verify:
 
 1. `config.ad.type: AD_TRACKING.SSAI.MT` is set in the tracker options.
 2. Segment requests are reaching the player (check the Network tab).
-3. If using a custom CDN ad-segment path, verify `adSegmentPrefix` matches the path configured in the AWS MediaTailor console.
+3. If using a custom CDN ad-segment path, verify `config.ad.segmentPrefix` matches the path configured in the AWS MediaTailor console.
 
 ## Samples
 
