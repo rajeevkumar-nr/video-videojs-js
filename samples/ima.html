@@ -30,6 +30,8 @@
     <!-- <script type="text/javascript" src="../../video-core-js/samples/agent.js"></script> -->
     <!-- New Relic Tracker -->
     <script src="../dist/umd/newrelic-video-videojs.min.js"></script>
+    <!-- quality levels (optional - only needed for rendition tracking) -->
+    <script src="https://cdn.jsdelivr.net/npm/videojs-contrib-quality-levels@3.0.0/dist/videojs-contrib-quality-levels.min.js"></script>
   </head>
   <body>
     <video
@@ -47,15 +49,16 @@
 
       /* Get the info object from the video agent onboarding */
 
-      options = {
+      const options = {
         info: {
-          beacon: 'xxxxxxxxxxx',
-          licenseKey: 'xxxxxxxxxxx',
-          applicationID: 'xxxxxxxxxxxx',
+          beacon: 'xxxxxxxxxxxx',
+          applicationID: 'xxxxxxxxxxx',
+          licenseKey: 'xxxxxxxxxxxxxx',
         },
       };
 
-      // // set up new relic videojs tracker
+      // Initialize your player with new relic Tracker to send data
+
       const tracker = new VideojsTracker(player, options);
 
       // IMA3
