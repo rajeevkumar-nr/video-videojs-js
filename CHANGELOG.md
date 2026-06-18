@@ -1,3 +1,43 @@
+## [4.2.0](https://github.com/newrelic/video-videojs-js/compare/v4.1.2...v4.2.0) (2026-06-10)
+
+### Features
+
+- **MediaTailor Custom CDN Support:** Replaced URL-based auto-detection with explicit opt-in
+  - Customers now pass `mediatailor: true` (or `mediatailor: { trackingUrl, adSegmentPrefix }`) to enable the tracker — supports both default AWS hostnames and custom CDN domains
+  - Added `MT_DEFAULT_AD_SEGMENT_PATH` (`/tm/`) constant for AWS-recommended CDN ad-segment path; ad segments rewritten to a custom CDN domain under `/tm/` are detected automatically
+  - `isMediaTailorSegment()` now checks the default AWS segments hostname, the `/tm/` path, and an optional customer-supplied `adSegmentPrefix`
+  - Threaded `adSegmentPrefix` through HLS (VHS) and DASH manifest parsing
+  - Added explicit session initialisation via `mediatailor: { trackingUrl }` for POST `/v1/session/` flows
+
+- **Ad Tracking Configuration:** Introduced `config.ad.type` to control ad tracker selection
+  - Exposed `AD_TRACKING` constant with CSAI (flat value covering IMA / Brightcove IMA / Freewheel / generic) and SSAI sub-types (`DAI`, `MT`)
+  - SSAI requires an explicit sub-type — each platform needs its own SDK and cannot be auto-detected
+  - `SSAI.MT` implies `mediatailor: true`
+  - When `config.ad.type` is unset, falls back to CSAI auto-detection with a warning (backward compatible for v4.1.2 users)
+  - Co-located `segmentPrefix` and `trackingUrl` under `config.ad`
+  - Added `DaiAdsTracker` to static exports
+
+- **Logging Improvements:**
+  - Exposed `VideojsTracker.Log` as a static so UMD callers can set log level
+  - Logs active ad segment detection mode at tracker startup
+  - Logs the matched ad segment detection path on first ad break (once per session)
+  - Logs which CSAI framework was auto-detected (BrightcoveIma / IMA / Freewheel / generic)
+  - Replaced `console.log/warn/error` with `nrvideo.Log` across MediaTailor files
+
+### Bug Fixes
+
+- **Buffer End:** Fixed buffer end handling in tracker
+- **Plugin Registration:** Fixed `register-plugin.js` silently dropping the options object and not forwarding it to the `TrackerJS` constructor
+
+### Documentation
+
+- **README & SSAI Docs:** Updated for custom CDN support, clarified when `trackingUrl` and `adSegmentPrefix` overrides are needed, cleaned up `sessionId` references
+- **SSAI Troubleshooting:** Corrected `adSegmentPrefix` references to `config.ad.segmentPrefix`
+
+### Samples
+
+- **MediaTailor Lab:** Rewrote sample app with a clean minimal UI — license key / app ID / playback URL / format toggle, smart Load button (handles both session init and direct playback URLs), NR log level toggle, debug log showing detected mode, credentials persisted in localStorage
+
 ## [4.1.2](https://github.com/newrelic/video-videojs-js/compare/v4.1.1...v4.1.2) (2026-05-11)
 
 ### Features
