@@ -1,3 +1,24 @@
+## [4.2.1](https://github.com/newrelic/video-videojs-js/compare/v4.2.0...v4.2.1) (2026-06-18)
+
+### Features
+
+- **Quality/Rendition Change Tracking:** Added optional support for automatic rendition change detection and reporting
+  - Integrated optional `videojs-contrib-quality-levels` plugin for quality level monitoring
+  - Implemented automatic rendition change event tracking with bitrate information
+  - Added lazy initialization of quality levels plugin support
+  - Tracks old and new bitrate during quality transitions
+  - Graceful fallback when quality levels plugin is not loaded
+
+### Documentation
+
+- **Quality/Rendition Tracking Guide:** Comprehensive documentation for enabling optional quality tracking
+  - Installation instructions for `videojs-contrib-quality-levels` plugin
+  - Detailed explanation of how the feature works
+  - Console debugging information for troubleshooting
+  - NRQL query examples for analyzing quality changes
+  - Updated README with Quality/Rendition Tracking section
+  - Feature Highlights section now includes rendition change tracking
+
 ## [4.2.0](https://github.com/newrelic/video-videojs-js/compare/v4.1.2...v4.2.0) (2026-06-10)
 
 ### Features

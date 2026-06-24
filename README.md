@@ -15,6 +15,7 @@ The New Relic Video.js Tracker provides comprehensive video analytics for applic
 - 🔧 **Multi-Tech Support** - Works with VHS, hls.js, and Shaka Player
 - 📈 **QoE Metrics** - Quality of Experience aggregation for startup time, buffering, and playback quality
 - 🎨 **Event Segregation** - Organized event types: `VideoAction`, `VideoAdAction`, `VideoErrorAction`, `VideoCustomAction`
+- 🌐 **Rendition Change Tracking** - Monitor quality/rendition changes with automatic rendition change event reporting
 - 🚀 **Easy Integration** - NPM package or direct script include
 
 ## Table of Contents
@@ -29,6 +30,7 @@ The New Relic Video.js Tracker provides comprehensive video analytics for applic
 - [API Reference](#api-reference)
 - [Bitrate Metrics](#bitrate-metrics)
 - [Ad Tracking Support](#ad-tracking-support)
+- [Quality/Rendition Tracking](#qualityrendition-tracking)
 - [SSAI Guide](#ssai-guide)
 - [Data Model](#data-model)
 - [Support](#support)
@@ -104,6 +106,9 @@ Before using the tracker, ensure you have:
 
 - **New Relic Account** - Active New Relic account with valid application credentials (`beacon`, `applicationId`, `licenseKey`)
 - **Video.js Player** - Video.js player integrated in your application
+
+**Optional:**
+- **Quality Tracking Plugin** - To track rendition/quality changes, optionally install `videojs-contrib-quality-levels` (see [Quality/Rendition Tracking](#qualityrendition-tracking) section for details). This is not required — the tracker works perfectly without it.
 
 ## Usage
 
@@ -541,6 +546,89 @@ const tracker = new VideojsTracker(player, {
 ```
 
 Works with default AWS hostnames and custom CDN domains. See [docs/ssai.md](./docs/ssai.md) for custom CDN setup and advanced options.
+
+## Quality/Rendition Tracking
+
+The tracker can automatically detect and report rendition (quality) changes when adaptive bitrate (ABR) video is played. This is an **optional feature** — the tracker works perfectly fine without it.
+
+### Optional: Enable Quality Tracking
+
+To enable quality/rendition change tracking, install and include the **videojs-contrib-quality-levels** plugin:
+
+**Step 1: Install the plugin**
+
+```bash
+npm install videojs-contrib-quality-levels
+```
+
+**Step 2: Include in your HTML** (before the tracker script):
+
+```html
+<!-- Video.js Player -->
+<link href="https://vjs.zencdn.net/7.20.3/video-js.css" rel="stylesheet" />
+<script src="https://vjs.zencdn.net/7.20.3/video.js"></script>
+
+<!-- Quality Levels Plugin (Optional - only needed for rendition tracking) -->
+<script src="https://cdn.jsdelivr.net/npm/videojs-contrib-quality-levels/dist/videojs-contrib-quality-levels.min.js"></script>
+
+<!-- New Relic Video.js Tracker -->
+<script src="path/to/newrelic-video-videojs.min.js"></script>
+```
+
+### How It Works
+
+When the plugin is enabled:
+- The tracker monitors the quality levels plugin for rendition change events
+- When a rendition change occurs (automatic ABR or user-initiated), a `RENDITION_CHANGE` event is sent to New Relic
+- The event includes quality metadata: bitrate, width, height, and label
+- Quality changes are tracked for both content and ad playback
+
+If the plugin is **not** loaded:
+- The tracker continues to work normally
+- All video events are tracked (play, pause, buffering, seeking, etc.)
+- Quality/rendition change events are simply not captured
+- A debug message logs to the console: `[QualityLevels] player.qualityLevels is not a function`
+
+### Console Debugging
+
+During development, if the plugin is enabled, the tracker logs quality change events to the console:
+
+```
+[QualityLevels] Plugin initialized successfully
+[QualityLevels] Change event fired!
+[QualityLevels] selectedIndex: 1
+[QualityLevels] Selected level: {width: 1280, height: 720, bitrate: 2500000, …}
+[QualityLevels] Sending rendition changed event
+```
+
+If you see this message instead:
+```
+[QualityLevels] player.qualityLevels is not a function
+```
+
+It means the plugin is not loaded or not available. This is fine — the tracker will continue tracking all other video metrics.
+
+### NRQL Query Examples
+
+When quality tracking is enabled:
+
+```sql
+-- Track rendition changes over time
+SELECT count(*) FROM VideoAction 
+WHERE actionName = 'CONTENT_RENDITION_CHANGE'
+FACET contentBitrate SINCE 1 day ago
+
+-- Monitor average bitrate during playback
+SELECT average(contentBitrate) FROM VideoAction 
+WHERE actionName = 'CONTENT_HEARTBEAT'
+FACET contentRenditionWidth, contentRenditionHeight 
+SINCE 1 hour ago
+
+-- Analyze quality upgrades vs downgrades
+SELECT contentBitrate FROM VideoAction 
+WHERE actionName = 'CONTENT_RENDITION_CHANGE'
+SINCE 24 hours ago
+```
 
 ## SSAI Guide
 

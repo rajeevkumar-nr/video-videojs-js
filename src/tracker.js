@@ -30,7 +30,7 @@ export const AD_TRACKING = {
   CSAI: 'csai',
   SSAI: Object.freeze({
     DAI: 'ssai:dai',
-    MT:  'ssai:mt',
+    MT: 'ssai:mt',
   }),
 };
 
@@ -42,13 +42,14 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
     this.imaAdCuePoints = '';
     this.daiInitialized = false;
     this.adTracking = options?.config?.ad?.type || null;
+    this.previousBitrate = null;
 
     // When options are provided but config.ad is not declared, no ad tracking
     // will run. Warn so the caller knows to set it explicitly.
     if (options && !this.adTracking) {
       nrvideo.Log.warn(
         'VideojsTracker: config.ad not set — no ad tracking will run. ' +
-        'Set config.ad.type to enable it (e.g. AD_TRACKING.CSAI, AD_TRACKING.SSAI.MT).'
+          'Set config.ad.type to enable it (e.g. AD_TRACKING.CSAI, AD_TRACKING.SSAI.MT).',
       );
     }
 
@@ -59,7 +60,7 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
       this.options = Object.assign({}, this.options, {
         mediatailor: {
           segmentPrefix: adConfig.segmentPrefix,
-          trackingUrl:   adConfig.trackingUrl,
+          trackingUrl: adConfig.trackingUrl,
           ...this.options?.mediatailor,
         },
       });
@@ -74,13 +75,10 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
    * @param {'csai'|'ssai:dai'|'ssai:mt'} type
    */
   setAdTracking(type) {
-    const valid = [
-      AD_TRACKING.CSAI,
-      ...Object.values(AD_TRACKING.SSAI),
-    ];
+    const valid = [AD_TRACKING.CSAI, ...Object.values(AD_TRACKING.SSAI)];
     if (!valid.includes(type)) {
       nrvideo.Log.warn(
-        `VideojsTracker.setAdTracking: unknown value "${type}". Valid values: ${valid.join(', ')}`
+        `VideojsTracker.setAdTracking: unknown value "${type}". Valid values: ${valid.join(', ')}`,
       );
       return;
     }
@@ -367,6 +365,15 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
     this.player.on('ads-allpods-completed', this.OnAdsAllpodsCompleted);
     this.player.on('stream-manager', this.onStreamManager);
     this.player.on('canplaythrough', this.onCanPlayThrough);
+
+    this.onQualityLevelChange = this.onQualityLevelChange.bind(this);
+    // Get qualityLevels lazily after player is ready
+    if (typeof this.player.qualityLevels === 'function') {
+      this.qualityLevels = this.player.qualityLevels();
+      if (this.qualityLevels) {
+        this.qualityLevels.on('change', this.onQualityLevelChange);
+      }
+    }
   }
 
   unregisterListeners() {
@@ -390,6 +397,9 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
     this.player.off('ads-allpods-completed', this.OnAdsAllpodsCompleted);
     this.player.off('stream-manager', this.onStreamManager);
     this.player.off('canplaythrough', this.onCanPlayThrough);
+    if (this.qualityLevels) {
+      this.qualityLevels.off('change', this.onQualityLevelChange);
+    }
   }
 
   onDownload(e) {
@@ -429,13 +439,15 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
     if (!this.adTracking) {
       nrvideo.Log.warn(
         'VideojsTracker: adsready fired but config.ad.type is not set — ' +
-        'attempting CSAI auto-detection for backward compatibility.'
+          'attempting CSAI auto-detection for backward compatibility.',
       );
     }
 
     if (!this.adsTracker) {
       if (BrightcoveImaAdsTracker.isUsing(this.player)) {
-        nrvideo.Log.debug('VideojsTracker: auto-detected BrightcoveImaAdsTracker');
+        nrvideo.Log.debug(
+          'VideojsTracker: auto-detected BrightcoveImaAdsTracker',
+        );
         this.setAdsTracker(new BrightcoveImaAdsTracker(this.player));
       } else if (ImaAdsTracker.isUsing(this.player)) {
         nrvideo.Log.debug('VideojsTracker: auto-detected ImaAdsTracker');
@@ -444,7 +456,9 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
         nrvideo.Log.debug('VideojsTracker: auto-detected FreewheelAdsTracker');
         this.setAdsTracker(new FreewheelAdsTracker(this.player));
       } else {
-        nrvideo.Log.debug('VideojsTracker: no specific CSAI framework detected, using generic VideojsAdsTracker');
+        nrvideo.Log.debug(
+          'VideojsTracker: no specific CSAI framework detected, using generic VideojsAdsTracker',
+        );
         this.setAdsTracker(new VideojsAdsTracker(this.player));
       }
     }
@@ -573,6 +587,24 @@ export default class VideojsTracker extends nrvideo.VideoTracker {
   onTimeupdate(e) {
     if (this.getPlayhead() > 0.1) {
       this.sendStart();
+    }
+  }
+
+  onQualityLevelChange(e) {
+    if (this.qualityLevels && this.qualityLevels.selectedIndex >= 0) {
+      const selectedLevel =
+        this.qualityLevels[this.qualityLevels.selectedIndex];
+      if (selectedLevel) {
+        const newBitrate = selectedLevel.bitrate;
+        const oldBitrate = this.previousBitrate;
+
+        this.sendRenditionChanged({
+          oldBitrate,
+          newBitrate,
+        });
+
+        this.previousBitrate = newBitrate;
+      }
     }
   }
 }
