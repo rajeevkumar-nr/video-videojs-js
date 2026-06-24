@@ -1,3 +1,11 @@
+## [4.2.1](https://github.com/rajeevkumar-nr/video-videojs-js/compare/v4.2.0...v4.2.1) (2026-06-24)
+
+
+### Bug Fixes
+
+* renditionName ([448d31c](https://github.com/rajeevkumar-nr/video-videojs-js/commit/448d31c4d2debe2dab83fb76b05b6abdeb31f7ff))
+* URL ([adc056b](https://github.com/rajeevkumar-nr/video-videojs-js/commit/adc056b7505090c20cacb4c3eda5ebe45efcfbe3))
+
 ## [4.2.0](https://github.com/newrelic/video-videojs-js/compare/v4.1.2...v4.2.0) (2026-06-10)
 
 ### Features
